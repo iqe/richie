@@ -1,0 +1,12 @@
+[Unit]
+Description=Richie
+After=syslog.target
+
+[Service]
+User=richie
+Group=richie
+ExecStart=/usr/bin/ruby /opt/richie/richie -c /opt/richie/richie.json -v
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

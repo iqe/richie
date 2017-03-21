@@ -1,0 +1,136 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+require 'json'
+require 'net/imap'
+require 'net/smtp'
+
+Signal.trap("TERM") do
+  puts "Terminating..."
+  exit! 0
+end
+
+@options = {
+  :config => {},
+  :verbose => false
+}
+
+OptionParser.new do |opts|
+  opts.banner = "Usage: richie [@options]"
+
+  opts.on("-c", "--config [FILE]", "Configuration file") do |config|
+    @options[:config] = JSON.parse(File.read(config))
+  end
+
+  opts.on("-v", "--verbose", "Verbose logging") do |verbose|
+    @options[:verbose] = verbose
+  end
+
+  opts.on_tail("-h", "--help", "Show this message") do
+    puts opts
+    exit
+  end
+end.parse!(ARGV.empty? ? ["-h"] : ARGV)
+
+def validate_config(config)
+  # TODO
+end
+
+def log(imap_name, message)
+  puts "#{imap_name}: #{message}"
+  STDOUT.flush # Required for systemd journal
+end
+
+def log_debug(imap_name, message)
+  log(imap_name, message) if @options[:verbose]
+end
+
+def forward(imap_name, imap_config, smtp_configs)
+  imap = Net::IMAP.new(imap_config["server"], :ssl => true)
+  imap.login(imap_config["user"], imap_config["password"])
+  imap.select("INBOX")
+
+  loop do
+    unseen_messages = imap.uid_search("UNSEEN")
+    log imap_name, "Processing #{unseen_messages.size} new messages" unless unseen_messages.empty?
+
+    unseen_messages.each do |uid|
+      log_debug imap_name, "Processing mail #{uid}"
+
+      mail = imap.uid_fetch(uid, ['RFC822', 'ENVELOPE'])[0]
+      from = mail.attr['ENVELOPE'].from[0].mailbox + '@' + mail.attr['ENVELOPE'].from[0].host
+      raw_mail = mail.attr['RFC822']
+
+      # GMX sets SEEN as soon as we fetch the mail body, so we reset it again
+      imap.uid_store(uid, "-FLAGS", [:Seen])
+
+      smtp_configs.each do |smtp_config|
+        smtp = Net::SMTP.new(smtp_config["server"], 25)
+        if smtp_config["server"] != "localhost"
+          smtp.enable_starttls
+        end
+
+        smtp.start("localhost") do
+          if smtp_config["user"]
+            smtp.auth_plain(smtp_config["user"], smtp_config["password"])
+          end
+          smtp.send_message raw_mail, from, smtp_config["to"]
+        end
+      end
+
+      log_debug imap_name, "Flagging mail #{uid} as seen"
+      imap.uid_store(uid, "+FLAGS", [:Seen])
+
+      if imap_config["keep"] == false # default: true
+        log_debug imap_name, "Flagging mail #{uid} as deleted"
+        imap.uid_store(uid, "+FLAGS", [:Deleted])
+      end
+    end
+
+    if imap_config["keep"] == false # default: true
+      log_debug imap_name "Expunging mailbox"
+      imap.expunge
+    end
+
+    log_debug imap_name, "Idling..."
+    imap.idle do |response|
+      if response.kind_of? Net::IMAP::UntaggedResponse
+        log_debug imap_name, "New messages have arrived"
+        imap.idle_done
+      end
+    end
+  end
+
+  imap.close
+  log imap_name "Closed connection"
+end
+
+validate_config(@options[:config])
+
+config = @options[:config]
+
+threads = []
+config["imap"].each do |imap_name, imap_config|
+  deliveries = config["deliveries"][imap_name]
+  smtp_configs = config["smtp"].select {|k, v| deliveries.include? k}.values
+
+  if smtp_configs.empty?
+    info imap_name, "No deliveries found"
+  else
+    threads << Thread.new do
+      begin
+        log imap_name, "Delivering mails to #{deliveries.join(", ")}"
+        forward(imap_name, imap_config, smtp_configs)
+      rescue => e
+        log imap_name, "ERROR: #{e.class} - #{e}"
+        e.backtrace.each do |line|
+          log imap_name, "ERROR:  #{line}"
+        end
+
+        exit! 1
+      end
+    end
+  end
+end
+
+threads.each {|t| t.join}

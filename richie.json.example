@@ -1,0 +1,14 @@
+{
+  "imap": {
+    "me@gmx.net": {"server": "imap.gmx.net", "user": "me@gmx.net", "password": "my_secret_password"},
+    "me-again": {"server": "imap.gmx.net", "user": "also-me@gmx.com", "password": "another_password", "keep": false}
+  },
+  "smtp": {
+    "myself": {"server": "localhost", "to": "mylocaluser"},
+    "a-friend": {"server": "mail.example.org", "to": "friend@example.com", "user": "myuser", "password": "secret"}
+  },
+  "deliveries": {
+    "me@gmx.net": ["myself"],
+    "me-again": ["a-friend", "myself"]
+  }
+}
