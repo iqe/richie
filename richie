@@ -46,11 +46,16 @@ def log_debug(imap_name, message)
 end
 
 def forward(imap_name, imap_config, smtp_configs)
-  imap = Net::IMAP.new(imap_config["server"], :ssl => true)
-  imap.login(imap_config["user"], imap_config["password"])
-  imap.select("INBOX")
+  imap = nil
 
   loop do
+    if imap == nil || imap.disconnected?
+      log imap_name, "Connecting to #{imap_config["server"]}"
+      imap = Net::IMAP.new(imap_config["server"], :ssl => true)
+      imap.login(imap_config["user"], imap_config["password"])
+      imap.select("INBOX")
+    end
+
     unseen_messages = imap.uid_search("UNSEEN")
     log imap_name, "Processing #{unseen_messages.size} new messages" unless unseen_messages.empty?
 
@@ -93,16 +98,24 @@ def forward(imap_name, imap_config, smtp_configs)
     end
 
     log_debug imap_name, "Idling..."
+    idle_start = Time.now
     imap.idle do |response|
       if response.kind_of? Net::IMAP::UntaggedResponse
         log_debug imap_name, "New messages have arrived"
         imap.idle_done
       end
+
+      # GMX drops the connection after 30 minutes, so we reconnect before that
+      idle_time = Time.now - idle_start
+      if idle_time >= 20 * 60 # 20 minutes
+        log_debug imap_name, "Pre-emptive disconnect after idling #{idle_time}s"
+        imap.idle_done
+
+        imap.close
+        imap.disconnect
+      end
     end
   end
-
-  imap.close
-  log imap_name "Closed connection"
 end
 
 validate_config(@options[:config])
