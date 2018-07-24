@@ -98,19 +98,17 @@ def forward(imap_name, imap_config, smtp_configs)
     end
 
     log_debug imap_name, "Idling..."
-    idle_start = Time.now
-    imap.idle do |response|
-      if response.kind_of? Net::IMAP::UntaggedResponse
-        log_debug imap_name, "New messages have arrived"
-        imap.idle_done
+    begin
+      imap.idle do |response|
+        if response.kind_of? Net::IMAP::UntaggedResponse
+          log_debug imap_name, "New messages have arrived"
+          imap.idle_done
+        end
       end
-
-      # GMX drops the connection after 30 minutes, so we reconnect before that
-      idle_time = Time.now - idle_start
-      if idle_time >= 20 * 60 # 20 minutes
-        log_debug imap_name, "Pre-emptive disconnect after idling #{idle_time}s"
-        imap.idle_done
-
+    rescue => e
+      # Most likely, the server disconnected us because of inactivity
+      log_debug imap_name, "Error during idle: #{e}"
+      if !imap.disconnected?
         imap.close
         imap.disconnect
       end
