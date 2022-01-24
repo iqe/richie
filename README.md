@@ -12,7 +12,8 @@ Read new mails from an IMAP mailbox and forward them to a SMTP server. Uses IMAP
 
     {
       "imap": {
-        "me@gmx.net": {"server": "imap.gmx.net", "user": "me@gmx.net", "password": "my_secret_password"},
+        "me@gmx.net": {"server": "imap.gmx.net", "user": "me@gmx.net", "password": "my_secret_password"}, /* Reads mails from INBOX, marks delivered mails as read */
+        "me@example.com": {"server": "mail.example.com", "user": "me@example.com", "password": "password", "folders": ["INBOX", "Spam"] }, /* Reads mails from INBOX and Spam folder */
         "me-again": {"server": "imap.gmx.net", "user": "also-me@gmx.com", "password": "another_password", "keep": false} /* Delete mails after delivery */
       },
       "smtp": {
@@ -21,6 +22,7 @@ Read new mails from an IMAP mailbox and forward them to a SMTP server. Uses IMAP
       },
       "deliveries": {
         "me@gmx.net": ["myself"],
+        "me@example.com": ["myself"],
         "me-again": ["a-friend", "myself"]
       }
     }
