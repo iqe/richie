@@ -55,50 +55,48 @@ def forward(imap_name, imap_config, smtp_configs)
       imap.login(imap_config["user"], imap_config["password"])
     end
 
-    folders = imap_config["folders"] || ["INBOX"]
-    folders.each do |folder|
-      imap.select(folder)
+    folder = imap_config["folder"] || "INBOX"
+    imap.select(folder)
 
-      unseen_messages = imap.uid_search("UNSEEN")
-      log imap_name, "Processing #{unseen_messages.size} new messages from #{folder}" unless unseen_messages.empty?
+    unseen_messages = imap.uid_search("UNSEEN")
+    log imap_name, "Processing #{unseen_messages.size} new messages from #{folder}" unless unseen_messages.empty?
 
-      unseen_messages.each do |uid|
-        log_debug imap_name, "Processing mail #{uid}"
+    unseen_messages.each do |uid|
+      log_debug imap_name, "Processing mail #{uid}"
 
-        mail = imap.uid_fetch(uid, ['RFC822', 'ENVELOPE'])[0]
-        from = mail.attr['ENVELOPE'].from[0].mailbox + '@' + mail.attr['ENVELOPE'].from[0].host
-        raw_mail = mail.attr['RFC822']
+      mail = imap.uid_fetch(uid, ['RFC822', 'ENVELOPE'])[0]
+      from = mail.attr['ENVELOPE'].from[0].mailbox + '@' + mail.attr['ENVELOPE'].from[0].host
+      raw_mail = mail.attr['RFC822']
 
-        # GMX sets SEEN as soon as we fetch the mail body, so we reset it again
-        imap.uid_store(uid, "-FLAGS", [:Seen])
+      # GMX sets SEEN as soon as we fetch the mail body, so we reset it again
+      imap.uid_store(uid, "-FLAGS", [:Seen])
 
-        smtp_configs.each do |smtp_config|
-          smtp = Net::SMTP.new(smtp_config["server"], 25)
-          if smtp_config["server"] != "localhost"
-            smtp.enable_starttls
-          end
-
-          smtp.start("localhost") do
-            if smtp_config["user"]
-              smtp.auth_plain(smtp_config["user"], smtp_config["password"])
-            end
-            smtp.send_message raw_mail, from, smtp_config["to"]
-          end
+      smtp_configs.each do |smtp_config|
+        smtp = Net::SMTP.new(smtp_config["server"], 25)
+        if smtp_config["server"] != "localhost"
+          smtp.enable_starttls
         end
 
-        log_debug imap_name, "Flagging mail #{uid} as seen"
-        imap.uid_store(uid, "+FLAGS", [:Seen])
-
-        if imap_config["keep"] == false # default: true
-          log_debug imap_name, "Flagging mail #{uid} as deleted"
-          imap.uid_store(uid, "+FLAGS", [:Deleted])
+        smtp.start("localhost") do
+          if smtp_config["user"]
+            smtp.auth_plain(smtp_config["user"], smtp_config["password"])
+          end
+          smtp.send_message raw_mail, from, smtp_config["to"]
         end
       end
+
+      log_debug imap_name, "Flagging mail #{uid} as seen"
+      imap.uid_store(uid, "+FLAGS", [:Seen])
 
       if imap_config["keep"] == false # default: true
-        log_debug imap_name "Expunging folder #{folder}"
-        imap.expunge
+        log_debug imap_name, "Flagging mail #{uid} as deleted"
+        imap.uid_store(uid, "+FLAGS", [:Deleted])
       end
+    end
+
+    if imap_config["keep"] == false # default: true
+      log_debug imap_name, "Expunging folder #{folder}"
+      imap.expunge
     end
 
     log_debug imap_name, "Idling..."

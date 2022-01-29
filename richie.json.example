@@ -1,7 +1,7 @@
 {
   "imap": {
-    "me@gmx.net": {"server": "imap.gmx.net", "user": "me@gmx.net", "password": "my_secret_password", "folders": ["INBOX", "Spam"]},
-    "me-again": {"server": "imap.gmx.net", "user": "also-me@gmx.com", "password": "another_password", "keep": false}
+    "me@gmx.net": {"server": "imap.gmx.net", "user": "me@gmx.net", "password": "my_secret_password"},
+    "me-again": {"server": "imap.gmx.net", "user": "also-me@gmx.com", "password": "another_password", "folder": "Spam", "keep": false}
   },
   "smtp": {
     "myself": {"server": "localhost", "to": "mylocaluser"},

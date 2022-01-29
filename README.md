@@ -12,18 +12,16 @@ Read new mails from an IMAP mailbox and forward them to a SMTP server. Uses IMAP
 
     {
       "imap": {
-        "me@gmx.net": {"server": "imap.gmx.net", "user": "me@gmx.net", "password": "my_secret_password"}, /* Reads mails from INBOX, marks delivered mails as read */
-        "me@example.com": {"server": "mail.example.com", "user": "me@example.com", "password": "password", "folders": ["INBOX", "Spam"] }, /* Reads mails from INBOX and Spam folder */
-        "me-again": {"server": "imap.gmx.net", "user": "also-me@gmx.com", "password": "another_password", "keep": false} /* Delete mails after delivery */
+        "gmx-inbox": {"server": "imap.gmx.net", "user": "me@gmx.net", "password": "my_secret_password"}, /* Fetches mails from INBOX, marks delivered mails as read */
+        "gmx-spam": {"server": "imap.gmx.net", "user": "me@gmx.net", "password": "my_secret_password", "folder": "Spam", "keep": false} /* Fetches mails from Spam folder, deletes them after delivery */
       },
       "smtp": {
         "myself": {"server": "localhost", "to": "mylocaluser"},
-        "a-friend": {"server": "mail.example.org", "to": "friend@example.com", "user": "myuser", "password": "secret"}
+        "spam-collector-via-example-org": {"server": "mail.example.org", "user": "myuser", "password": "secret", "to": "incoming@spam-collector.com"}
       },
       "deliveries": {
-        "me@gmx.net": ["myself"],
-        "me@example.com": ["myself"],
-        "me-again": ["a-friend", "myself"]
+        "gmx-inbox": ["myself"],
+        "gmx-spam": ["myself", "spam-collector-via-example-org"]
       }
     }
 
